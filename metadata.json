@@ -1,0 +1,6 @@
+{
+  "name": "SwapX - Stellar Token Swap & DEX",
+  "description": "Ultra-premium, production-ready Web3 Token Swap Interface for Stellar Blockchain with Soroban Smart Contracts and Freighter Wallet integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
