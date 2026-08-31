@@ -104,6 +104,15 @@ export default function App() {
     });
   }, []);
 
+  // Auto-refresh XLM balance whenever wallet connects or public key changes
+  useEffect(() => {
+    if (wallet.isConnected && wallet.publicKey) {
+      fetchTestnetXlmBalance(wallet.publicKey).then((bal) => {
+        setWallet((prev) => ({ ...prev, balanceXlm: bal }));
+      });
+    }
+  }, [wallet.isConnected, wallet.publicKey]);
+
   // Connect Freighter Wallet
   const handleConnectWallet = async () => {
     setWallet((prev) => ({ ...prev, isConnecting: true, error: null }));
