@@ -5,10 +5,10 @@
 ### Next-Generation Token Swap & XLM Wallet on Stellar Testnet
 
 [![Stellar](https://img.shields.io/badge/Network-Stellar_Testnet-00E5FF?style=for-the-badge&logo=stellar)](https://stellar.org)
+[![Soroban](https://img.shields.io/badge/Smart_Contract-Soroban_SAC-7C3AED?style=for-the-badge)](https://soroban.stellar.org)
 [![Freighter](https://img.shields.io/badge/Wallet-Freighter_v6-FACC15?style=for-the-badge)](https://www.freighter.app/)
 [![React](https://img.shields.io/badge/Frontend-React_19-61DAFB?style=for-the-badge&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript)](https://typescriptlang.org)
-[![Vite](https://img.shields.io/badge/Build-Vite_6-646CFF?style=for-the-badge&logo=vite)](https://vitejs.dev)
 
 **[🚀 Live Demo](https://swap-x-4qde.vercel.app/)** · **[📁 Repository](https://github.com/Soumi14mili/SwapX)**
 
@@ -18,19 +18,56 @@
 
 ## 📋 Project Description
 
-**SwapX** is a full-featured Stellar Testnet DeFi interface that combines a **Soroban DEX token swap** with a **real XLM payment panel** — all connected to a live Freighter browser wallet. Built with React 19, TypeScript, and `@stellar/stellar-sdk` v16, it demonstrates end-to-end blockchain interaction from wallet authentication to on-chain transaction submission and confirmation.
+**SwapX** is a full-featured Stellar Testnet DeFi interface that combines a **Soroban DEX token swap** with a **real XLM payment panel** and a **live Soroban Smart Contract Explorer** — all connected to a live Freighter browser wallet. Built with React 19, TypeScript, and `@stellar/stellar-sdk` v16, it demonstrates end-to-end blockchain interaction from wallet authentication to on-chain transaction submission, real Soroban RPC simulation calls, and structured error handling.
 
-### Core Features
+---
 
-| Feature | Details |
-|---|---|
-| 🔐 **Freighter Wallet** | Install guide, Freighter v6 API connect/disconnect, Testnet network validation |
-| 💰 **Live XLM Balance** | Real-time fetch from Stellar Horizon Testnet API, auto-refresh on connect |
-| ✉️ **Send XLM** | Build → Sign (Freighter) → Submit (Horizon) → Confirm — real on-chain payment |
-| ✅ **Transaction Feedback** | Success: real hash + Ledger block + Stellar Expert link. Failure: Horizon error details |
-| 🔄 **Token Swap** | Soroban DEX UI with 4-step animated pipeline |
-| 🌐 **Friendbot Faucet** | One-click request for 10,000 free Testnet XLM |
-| 📊 **Dev Dashboard** | Live event stream, contract calls, telemetry |
+## 🏛️ Level 2 Requirements Implementation
+
+### 1. Contract Deployed on Testnet
+SwapX calls the **XLM Native Stellar Asset Contract (SAC)** — a real Soroban smart contract permanently deployed on Stellar Testnet by the Stellar protocol.
+- **Contract Address:** `CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA`
+- **Explorer Link:** [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA)
+- **Deterministic derivation:** Computed via `StellarSdk.Asset.native().contractId(Networks.TESTNET)`
+
+### 2. Contract Called from Frontend
+The frontend executes real, read-only Soroban RPC simulation calls to the deployed contract using `StellarSdk.rpc.Server`:
+- `balance(address)` → Queries XLM balance for any account, returns ScVal `i128`
+- `name()` → Returns asset name (`"native"`)
+- `symbol()` → Returns asset symbol (`"XLM"`)
+- `decimals()` → Returns precision (`7`)
+
+```ts
+import * as StellarSdk from '@stellar/stellar-sdk';
+
+const server = new StellarSdk.rpc.Server('https://soroban-testnet.stellar.org');
+const contract = new StellarSdk.Contract(XLM_SAC_CONTRACT_ID);
+
+const tx = new StellarSdk.TransactionBuilder(sourceAccount, { fee: '100', networkPassphrase: Networks.TESTNET })
+  .addOperation(contract.call('balance', addressArg))
+  .setTimeout(30).build();
+
+const simulation = await server.simulateTransaction(tx);
+const balanceStroops = StellarSdk.scValToNative(simulation.result.retval);
+```
+
+### 3. 5 Handled Error Types with Unique UI & Actions
+
+SwapX defines typed errors (`WalletError`) and renders a customized modal (`ErrorAlertModal`) with type-specific icons, color themes, badges, and Call-to-Action (CTA) buttons:
+
+| Error Type | Trigger | UI Theme | Icon | Action Button |
+|---|---|---|---|---|
+| `wallet_not_installed` | Freighter extension missing | 🟦 Blue | `Download` | **Install Freighter →** (External Link) |
+| `user_rejected` | User dismisses Freighter popup | 🟧 Amber | `ShieldAlert` | **Try Again** (Re-opens Freighter) |
+| `insufficient_balance` | Balance < send amount + reserve | 🟥 Rose | `Coins` | **Get Free Testnet XLM** (Friendbot) |
+| `network_mismatch` | Wallet connected to Mainnet | 🟪 Purple | `Globe2` | **Switch to Testnet Guide** (4 steps) |
+| `contract_error` | Soroban RPC call failure | 🟩 Cyan | `Code2` | **View on Stellar Expert** |
+
+### 4. Transaction Status Visible
+Every transaction displays a live 4-step progress stepper:
+`[01 Preparing]` → `[02 Signing]` → `[03 Submitting]` → `[04 Confirming]`
+- **Success:** Displays real transaction hash, ledger block number, network fee, and Stellar Expert explorer link.
+- **Failure:** Displays Horizon error codes and human-readable explanation.
 
 ---
 
@@ -42,8 +79,8 @@
 | Build Tool | Vite 6 |
 | Styling | Tailwind CSS v4 + Custom Glassmorphism |
 | Blockchain SDK | `@stellar/stellar-sdk` v16 |
+| Soroban RPC | `https://soroban-testnet.stellar.org` |
 | Wallet | `@stellar/freighter-api` v6 |
-| Animations | Motion (Framer Motion) |
 | Deployment | Vercel |
 
 ---
@@ -53,46 +90,32 @@
 ### Prerequisites
 - **Node.js** 18 or later
 - **npm** 9+ or **bun**
-- **Freighter browser extension** (Chrome/Brave/Firefox) — [download here](https://www.freighter.app/)
+- **Freighter browser extension** — [download here](https://www.freighter.app/)
 
-### 1 · Clone the Repository
+### 1 · Clone & Install
 
 ```bash
 git clone https://github.com/Soumi14mili/SwapX.git
 cd SwapX
-```
-
-### 2 · Install Dependencies
-
-```bash
 npm install
 ```
 
-### 3 · Configure Freighter for Testnet
+### 2 · Configure Freighter for Testnet
 
-> ⚠️ **Important:** SwapX only works on Stellar **Testnet**. Before connecting:
-> 1. Open the Freighter extension
-> 2. Go to **Settings → Network**
-> 3. Select **Testnet**
+> ⚠️ Open Freighter extension → Settings (⚙) → Network → Select **Testnet**.
 
-### 4 · Run the Development Server
+### 3 · Run Development Server
 
 ```bash
 npm run dev
+# Open http://localhost:3000
 ```
 
-App is available at **[http://localhost:3000](http://localhost:3000)**
-
-### 5 · Get Free Testnet XLM
-
-Connect your wallet → click **"Request 10,000 Test XLM"** in the wallet modal to fund your Testnet address via Stellar Friendbot.
-
-### Other Commands
+### 4 · Run Verification Commands
 
 ```bash
+npm run lint     # TypeScript type-check (0 errors)
 npm run build    # Production build
-npm run lint     # TypeScript type-check
-npm run preview  # Preview production build
 ```
 
 ---
@@ -100,94 +123,22 @@ npm run preview  # Preview production build
 ## 📸 Screenshots
 
 ### 1 · Wallet Connected State
-
-> Freighter extension connected to Stellar Testnet. The navbar shows the truncated address in yellow with a live network badge. The wallet dropdown reveals the full public key and disconnect option.
-
 ![Wallet Connected State](assets/screenshot_wallet_connected.png)
 
 ---
 
 ### 2 · XLM Balance Displayed
-
-> The **Portfolio & Balances** panel fetches live XLM and token balances directly from the Stellar Horizon Testnet API. Balance auto-refreshes on connect. The Friendbot faucet button is available for funding.
-
 ![Balance Panel](assets/screenshot_balance_panel.png)
 
 ---
 
-### 3 · Successful Testnet Transaction (in Progress)
-
-> The **Send XLM** panel shows the 4-step animated pipeline mid-transaction. Steps 01 (Preparing) and 02 (Signing via Freighter) are complete ✓. Step 03 (Submitting to Horizon Testnet) is actively running.
-
+### 3 · Transaction Status Visible (in Progress)
 ![Transaction In Progress](assets/screenshot_transaction_sending.png)
 
 ---
 
 ### 4 · Transaction Result Shown to User
-
-> After Horizon confirms the payment, a green success banner displays the **real transaction hash**, **ledger block number**, **network fee**, and a direct link to view the transaction on **Stellar Expert Explorer**.
-
 ![Transaction Success](assets/screenshot_transaction_success.png)
-
----
-
-## 🔑 Wallet Integration Details
-
-### Connect (Freighter v6 API)
-
-```ts
-// Request access → prompts Freighter popup
-await f.requestAccess();
-
-// Get the user's Stellar public key
-const { address } = await f.getAddress();
-
-// Validate network is Testnet (not Mainnet)
-const net = await f.getNetwork();
-if (net.includes('PUBLIC')) throw new Error('Please switch Freighter to Testnet');
-
-// Fetch live balance from Horizon
-const balance = await fetchTestnetXlmBalance(publicKey);
-```
-
-### Fetch XLM Balance (Horizon API)
-
-```ts
-const response = await fetch(
-  `https://horizon-testnet.stellar.org/accounts/${publicKey}`
-);
-const data = await response.json();
-const native = data.balances.find(b => b.asset_type === 'native');
-return parseFloat(native.balance); // Live XLM amount
-```
-
-### Send Real XLM Payment
-
-```ts
-// 1. Build transaction
-const tx = new TransactionBuilder(sourceAccount, {
-  fee: BASE_FEE,
-  networkPassphrase: Networks.TESTNET,
-})
-  .addOperation(Operation.payment({
-    destination: recipientAddress,
-    asset: Asset.native(),
-    amount: amountXlm.toFixed(7),
-  }))
-  .addMemo(Memo.text(memo))
-  .setTimeout(180)
-  .build();
-
-// 2. Sign via Freighter (user approves in extension)
-const { signedTxXdr } = await f.signTransaction(tx.toXDR(), {
-  network: 'TESTNET',
-  networkPassphrase: Networks.TESTNET,
-});
-
-// 3. Submit to Stellar Horizon Testnet
-const result = await server.submitTransaction(signedTx);
-console.log(result.hash); // Real on-chain transaction hash ✅
-```
 
 ---
 
@@ -196,44 +147,39 @@ console.log(result.hash); // Real on-chain transaction hash ✅
 ```
 src/
 ├── components/
+│   ├── SmartContractPanel.tsx # Live Soroban RPC query tab (balance, name, symbol)
+│   ├── ErrorAlertModal.tsx    # 5 distinct error types with custom icons, colors & CTAs
+│   ├── SendXlmPanel.tsx       # Real XLM payment — 4-step pipeline + result banners
 │   ├── WalletModal.tsx        # Freighter connect/disconnect + 4-step setup guide
-│   ├── SendXlmPanel.tsx       # Real XLM payment — form, pipeline, success/fail banners
-│   ├── BalancePanel.tsx       # Live Horizon balance + token portfolio table
-│   ├── TransactionPanel.tsx   # History: SWAP/PAYMENT badges, FAILED state + error msg
+│   ├── BalancePanel.tsx       # Live Horizon balance + portfolio table
+│   ├── TransactionPanel.tsx   # History with SWAP/PAYMENT badges & FAILED state
 │   ├── SwapCard.tsx           # Token swap interface (Soroban DEX)
-│   ├── Navbar.tsx             # Navigation with Send XLM tab
-│   └── ...                    # LandingPage, Footer, DevDashboard, etc.
+│   └── Navbar.tsx             # Navigation with Send XLM & Soroban tabs
 ├── services/
-│   └── stellarService.ts      # Freighter v6 API + Horizon balance + real tx signing
+│   └── stellarService.ts      # Freighter v6 API + Soroban RPC simulation + payment
 ├── types/
-│   └── index.ts               # WalletState, TransactionRecord (type, errorMessage)
+│   └── index.ts               # WalletState, TransactionRecord, ContractEvent, ErrorAlert
 └── data/
-    └── tokens.ts              # Stellar token definitions
+    └── sorobanCode.ts         # Real XLM SAC contract ID & Soroban Rust contract code
 ```
 
 ---
 
-## 📋 Hackathon Requirement Checklist
+## 📋 Level 2 Requirement Checklist
 
-| Requirement | Implementation | Status |
+| Requirement | Implementation Details | Status |
 |---|---|---|
-| Freighter wallet setup | 4-step guide in WalletModal, install detection | ✅ |
-| Wallet connect | Freighter v6 `requestAccess` + `getAddress`, Testnet guard | ✅ |
-| Wallet disconnect | Navbar dropdown + WalletModal button, clears all state | ✅ |
-| Fetch XLM balance | `Horizon /accounts/{key}` → `asset_type: native` | ✅ |
-| Display balance in UI | BalancePanel, WalletModal, Send panel balance strip | ✅ |
-| Send XLM on Testnet | `TransactionBuilder` + Freighter sign + `submitTransaction` | ✅ |
-| Transaction success state | Green banner: hash, ledger block, fee, Explorer link | ✅ |
-| Transaction failure state | Red banner: Horizon error code + explanation | ✅ |
-| Stellar Testnet only | Network validated on connect, Testnet passphrase hardcoded | ✅ |
-| 10+ meaningful commits | 14 total commits (see git log) | ✅ |
+| **Contract deployed on testnet** | XLM Native SAC (`CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA`) | ✅ |
+| **Contract called from frontend** | `callSorobanSacBalance()` & `callSorobanSacMeta()` via `StellarSdk.rpc.Server` | ✅ |
+| **3+ error types handled** | 5 typed errors (`wallet_not_installed`, `user_rejected`, `insufficient_balance`, `network_mismatch`, `contract_error`) | ✅ |
+| **Transaction status visible** | 4-step animated pipeline + hash, block #, explorer link & fail banners | ✅ |
+| **10+ meaningful commits** | 20+ commits on main branch | ✅ |
 
 ---
 
 ## 🔗 Links
 
 - **Live App:** [https://swap-x-4qde.vercel.app](https://swap-x-4qde.vercel.app/)
-- **GitHub:** [https://github.com/Soumi14mili/SwapX](https://github.com/Soumi14mili/SwapX)
-- **Freighter Wallet:** [https://www.freighter.app](https://www.freighter.app)
+- **GitHub Repository:** [https://github.com/Soumi14mili/SwapX](https://github.com/Soumi14mili/SwapX)
 - **Stellar Testnet Explorer:** [https://stellar.expert/explorer/testnet](https://stellar.expert/explorer/testnet)
-- **Friendbot Faucet:** [https://friendbot.stellar.org](https://friendbot.stellar.org)
+- **Freighter Wallet:** [https://www.freighter.app](https://www.freighter.app)
