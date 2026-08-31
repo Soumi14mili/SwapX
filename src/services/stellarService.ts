@@ -1,29 +1,47 @@
 import * as freighter from '@stellar/freighter-api';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { WalletState, TransactionRecord, NetworkType } from '../types';
-import { SOROBAN_CONTRACT_ADDRESS } from '../data/sorobanCode';
+import { SOROBAN_CONTRACT_ADDRESS, XLM_SAC_CONTRACT_ID, SOROBAN_RPC_URL } from '../data/sorobanCode';
 
 const HORIZON_TESTNET_URL = 'https://horizon-testnet.stellar.org';
 const FRIENDBOT_URL = 'https://friendbot.stellar.org';
 
-// ─────────────────────────────────────────────
-// FREIGHTER WALLET – DETECTION & CONNECTION
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPED WALLET ERRORS — 3 distinct error types for UI differentiation
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type WalletErrorType =
+  | 'wallet_not_installed'   // Freighter extension not detected in browser
+  | 'user_rejected'          // User dismissed the Freighter approval popup
+  | 'network_mismatch'       // Freighter is on Mainnet (PUBLIC) not Testnet
+  | 'insufficient_balance'   // Account balance too low for the operation
+  | 'contract_error';        // Soroban RPC or contract invocation failed
 
 /**
- * Check if Freighter browser extension is installed and active.
- * Uses Freighter v6 isConnected() API.
+ * Typed error class that carries an error category for UI differentiation.
+ * The ErrorAlertModal uses `type` to render the correct icon, color, and CTA.
  */
+export class WalletError extends Error {
+  constructor(
+    public readonly errorType: WalletErrorType,
+    message: string
+  ) {
+    super(message);
+    this.name = 'WalletError';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FREIGHTER WALLET — DETECTION & CONNECTION
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Check if Freighter browser extension is installed and active (v6 API) */
 export async function checkFreighterInstalled(): Promise<boolean> {
   try {
     const f = freighter as any;
     if (f && typeof f.isConnected === 'function') {
       const result = await f.isConnected();
-      // Freighter v6 returns { isConnected: boolean } or boolean
-      if (typeof result === 'object' && result !== null) {
-        return !!result.isConnected;
-      }
-      return !!result;
+      return typeof result === 'object' ? !!result.isConnected : !!result;
     }
     return false;
   } catch {
@@ -32,14 +50,14 @@ export async function checkFreighterInstalled(): Promise<boolean> {
 }
 
 /**
- * Request access and retrieve the public key from Freighter.
- * Uses Freighter v6: requestAccess() → getAddress()
+ * Connect Freighter wallet using v6 API.
+ * Throws typed WalletError for user_rejected, network_mismatch.
  */
 export async function connectFreighterWallet(): Promise<WalletState> {
   const isInstalled = await checkFreighterInstalled();
 
   if (!isInstalled) {
-    // Graceful demo mode — simulated testnet wallet for UI testing
+    // Demo fallback — simulated testnet wallet for UI exploration
     return {
       isConnected: true,
       publicKey: 'GDEMO5UX2XQPBQ43XSSCFHQB12KPQUEZJCBAMWKFXBA6XNECMKJNMZA',
@@ -54,45 +72,53 @@ export async function connectFreighterWallet(): Promise<WalletState> {
   try {
     const f = freighter as any;
 
-    // Step 1 — Request Freighter access (prompts extension popup)
+    // Request access — prompts the Freighter popup
     if (typeof f.requestAccess === 'function') {
-      await f.requestAccess();
+      const accessResult = await f.requestAccess();
+      // Freighter v6 returns { error } on rejection
+      if (accessResult?.error) {
+        throw new WalletError(
+          'user_rejected',
+          'You dismissed the Freighter approval popup. Click "Connect" again and approve the request inside the Freighter extension.'
+        );
+      }
     }
 
-    // Step 2 — Get the user's public key
+    // Retrieve the public key
     let publicKey = '';
     if (typeof f.getAddress === 'function') {
-      // Freighter v6 API
       const result = await f.getAddress();
+      if (result?.error) {
+        throw new WalletError('user_rejected', 'Freighter did not return a public key. Please unlock the extension and try again.');
+      }
       publicKey = typeof result === 'object' ? result.address : result;
     } else if (typeof f.getPublicKey === 'function') {
-      // Fallback for older versions
       publicKey = await f.getPublicKey();
     }
 
     if (!publicKey) {
-      throw new Error('Could not retrieve public key from Freighter. Please unlock the extension and try again.');
+      throw new WalletError('user_rejected', 'Could not retrieve public key. Please unlock Freighter and try again.');
     }
 
-    // Step 3 — Validate network is Testnet
+    // Validate network — must be Testnet
     let network: NetworkType = 'TESTNET';
     try {
       if (typeof f.getNetwork === 'function') {
         const netResult = await f.getNetwork();
-        const netStr = typeof netResult === 'object' ? netResult.network : netResult;
-        if (typeof netStr === 'string' && netStr.toUpperCase().includes('PUBLIC')) {
-          throw new Error(
-            'Freighter is connected to Stellar Mainnet (PUBLIC). Please switch to Testnet in Freighter settings to use SwapX safely.'
+        const netStr = typeof netResult === 'object' ? (netResult.network || netResult.networkUrl || '') : String(netResult);
+        if (netStr.toUpperCase().includes('PUBLIC') || netStr.includes('mainnet')) {
+          throw new WalletError(
+            'network_mismatch',
+            'Freighter is connected to Stellar Mainnet (PUBLIC). SwapX only works on Testnet. Open Freighter → Settings → Network → select "Testnet".'
           );
         }
         network = 'TESTNET';
       }
     } catch (netErr: any) {
-      if (netErr.message && netErr.message.includes('Mainnet')) throw netErr;
+      if (netErr instanceof WalletError) throw netErr;
       network = 'TESTNET';
     }
 
-    // Step 4 — Fetch live balance from Horizon Testnet
     const balance = await fetchTestnetXlmBalance(publicKey);
 
     return {
@@ -105,60 +131,207 @@ export async function connectFreighterWallet(): Promise<WalletState> {
       error: null,
     };
   } catch (err: any) {
-    throw new Error(err?.message || 'Failed to connect Freighter wallet.');
+    if (err instanceof WalletError) throw err;
+    // Check for rejection signals in the error message
+    const msg: string = err?.message || '';
+    if (msg.toLowerCase().includes('rejected') || msg.toLowerCase().includes('denied') || msg.toLowerCase().includes('declined')) {
+      throw new WalletError('user_rejected', 'You rejected the Freighter connection request. Click "Connect" and approve when Freighter opens.');
+    }
+    throw new WalletError('user_rejected', err?.message || 'Failed to connect Freighter wallet.');
   }
 }
 
-// ─────────────────────────────────────────────
-// BALANCE – HORIZON TESTNET API
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// BALANCE — HORIZON TESTNET API
+// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Fetch the native XLM balance for a Stellar account from the Horizon Testnet.
- */
+/** Fetch native XLM balance from Horizon Testnet for a given public key */
 export async function fetchTestnetXlmBalance(publicKey: string): Promise<number> {
-  if (!publicKey || !publicKey.startsWith('G')) {
-    return 10000.0;
-  }
+  if (!publicKey || !publicKey.startsWith('G')) return 10000.0;
   try {
     const response = await fetch(`${HORIZON_TESTNET_URL}/accounts/${publicKey}`);
-    if (!response.ok) {
-      return response.status === 404 ? 0.0 : 10000.0;
-    }
+    if (!response.ok) return response.status === 404 ? 0.0 : 10000.0;
     const data = await response.json();
-    const nativeBalance = data.balances?.find((b: any) => b.asset_type === 'native');
-    return nativeBalance ? parseFloat(nativeBalance.balance) : 0.0;
+    const native = data.balances?.find((b: any) => b.asset_type === 'native');
+    return native ? parseFloat(native.balance) : 0.0;
   } catch {
     return 10000.0;
   }
 }
 
-// ─────────────────────────────────────────────
-// FAUCET – STELLAR FRIENDBOT
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// REAL SOROBAN RPC — XLM NATIVE SAC CONTRACT CALLS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SorobanCallResult {
+  success: boolean;
+  functionName: string;
+  contractId: string;
+  rawScVal: string;
+  parsedValue: string;
+  ledger?: number;
+  error?: string;
+}
 
 /**
- * Fund a Testnet address with 10,000 XLM via the Stellar Friendbot faucet.
+ * Call the XLM Native Stellar Asset Contract (SAC) `balance(address)` function
+ * via Soroban RPC simulation. This is a REAL on-chain contract read.
+ *
+ * The XLM SAC is deployed permanently on Stellar Testnet by the Stellar protocol.
+ * Its contract ID is deterministically derived from the native asset + network passphrase.
+ *
+ * @param targetAddress - The Stellar address (G...) to query balance for
+ * @param callerAddress - Any funded Stellar address to build the simulation tx from
  */
+export async function callSorobanSacBalance(
+  targetAddress: string,
+  callerAddress: string
+): Promise<SorobanCallResult> {
+  const fnName = 'balance';
+  try {
+    const server = new StellarSdk.SorobanRpc.Server(SOROBAN_RPC_URL, { allowHttp: false });
+    const contract = new StellarSdk.Contract(XLM_SAC_CONTRACT_ID);
+
+    // We need any funded account to build the simulation transaction
+    // Use a well-known funded testnet account as fallback
+    const sourceKey = callerAddress.startsWith('G') ? callerAddress : 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+
+    let sourceAccount: StellarSdk.Account;
+    try {
+      sourceAccount = await server.getAccount(sourceKey);
+    } catch {
+      // If account not found on Soroban RPC, use Horizon to get sequence
+      const horizonServer = new StellarSdk.Horizon.Server(HORIZON_TESTNET_URL);
+      const horizonAccount = await horizonServer.loadAccount(sourceKey);
+      sourceAccount = new StellarSdk.Account(horizonAccount.accountId(), horizonAccount.sequenceNumber());
+    }
+
+    // Build the Address ScVal argument for the target address
+    const addressArg = StellarSdk.nativeToScVal(
+      new StellarSdk.Address(targetAddress),
+      { type: 'address' }
+    );
+
+    // Build the simulation transaction
+    const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: StellarSdk.Networks.TESTNET,
+    })
+      .addOperation(contract.call(fnName, addressArg))
+      .setTimeout(30)
+      .build();
+
+    // Simulate — no signing needed for read-only calls
+    const simulation = await server.simulateTransaction(tx);
+
+    if (StellarSdk.SorobanRpc.Api.isSimulationError(simulation)) {
+      throw new WalletError('contract_error', `Soroban simulation error: ${simulation.error}`);
+    }
+
+    // Parse i128 result — balance is in stroops (1 XLM = 10^7 stroops)
+    const resultScVal = (simulation as any).result?.retval;
+    const rawStr = resultScVal ? StellarSdk.scValToNative(resultScVal).toString() : '0';
+    const balanceStroops = BigInt(rawStr || '0');
+    const balanceXlm = (Number(balanceStroops) / 1e7).toFixed(7);
+
+    return {
+      success: true,
+      functionName: fnName,
+      contractId: XLM_SAC_CONTRACT_ID,
+      rawScVal: `i128(${rawStr})`,
+      parsedValue: `${balanceXlm} XLM (${rawStr} stroops)`,
+      ledger: (simulation as any).latestLedger,
+    };
+  } catch (err: any) {
+    if (err instanceof WalletError) throw err;
+    return {
+      success: false,
+      functionName: fnName,
+      contractId: XLM_SAC_CONTRACT_ID,
+      rawScVal: '',
+      parsedValue: '',
+      error: err?.message || 'Soroban RPC call failed',
+    };
+  }
+}
+
+/**
+ * Call the XLM SAC `name()` function — returns "native"
+ * Real Soroban RPC simulation, no signing required.
+ */
+export async function callSorobanSacMeta(
+  fnName: 'name' | 'symbol' | 'decimals',
+  callerAddress: string
+): Promise<SorobanCallResult> {
+  try {
+    const server = new StellarSdk.SorobanRpc.Server(SOROBAN_RPC_URL, { allowHttp: false });
+    const contract = new StellarSdk.Contract(XLM_SAC_CONTRACT_ID);
+
+    const sourceKey = callerAddress.startsWith('G') ? callerAddress : 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+    let sourceAccount: StellarSdk.Account;
+    try {
+      sourceAccount = await server.getAccount(sourceKey);
+    } catch {
+      const hz = new StellarSdk.Horizon.Server(HORIZON_TESTNET_URL);
+      const ha = await hz.loadAccount(sourceKey);
+      sourceAccount = new StellarSdk.Account(ha.accountId(), ha.sequenceNumber());
+    }
+
+    const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: StellarSdk.Networks.TESTNET,
+    })
+      .addOperation(contract.call(fnName))
+      .setTimeout(30)
+      .build();
+
+    const simulation = await server.simulateTransaction(tx);
+
+    if (StellarSdk.SorobanRpc.Api.isSimulationError(simulation)) {
+      throw new Error(`Simulation failed: ${simulation.error}`);
+    }
+
+    const resultScVal = (simulation as any).result?.retval;
+    const parsed = resultScVal ? StellarSdk.scValToNative(resultScVal) : '(no result)';
+
+    return {
+      success: true,
+      functionName: fnName,
+      contractId: XLM_SAC_CONTRACT_ID,
+      rawScVal: resultScVal ? resultScVal.toXDR('base64') : '',
+      parsedValue: String(parsed),
+      ledger: (simulation as any).latestLedger,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      functionName: fnName,
+      contractId: XLM_SAC_CONTRACT_ID,
+      rawScVal: '',
+      parsedValue: '',
+      error: err?.message || 'Soroban RPC call failed',
+    };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAUCET — STELLAR FRIENDBOT
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function requestFriendbotTokens(publicKey: string): Promise<{ success: boolean; message: string }> {
   try {
     const response = await fetch(`${FRIENDBOT_URL}/?addr=${encodeURIComponent(publicKey)}`);
-    if (response.ok) {
-      return { success: true, message: 'Successfully received 10,000 Testnet XLM from Stellar Friendbot!' };
-    }
+    if (response.ok) return { success: true, message: 'Successfully received 10,000 Testnet XLM from Stellar Friendbot!' };
     const errText = await response.text();
-    return {
-      success: false,
-      message: `Friendbot Notice: ${errText || 'Account might already be funded.'}`,
-    };
+    return { success: false, message: `Friendbot Notice: ${errText || 'Account might already be funded.'}` };
   } catch {
     return { success: true, message: 'Simulated 10,000 XLM funding credited to Testnet address.' };
   }
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // REAL XLM PAYMENT TRANSACTION
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface XlmPaymentResult {
   hash: string;
@@ -170,15 +343,9 @@ export interface XlmPaymentResult {
 }
 
 /**
- * Build, sign (via Freighter), and submit a real XLM payment on Stellar Testnet.
- *
- * Falls back to a realistic simulation if Freighter is not installed.
- *
- * @param senderPublicKey - The sender's Stellar public key (G...)
- * @param destinationPublicKey - The recipient's Stellar public key (G...)
- * @param amountXlm - Amount in XLM to send
- * @param memo - Optional text memo
- * @param onStep - Callback to update UI step status
+ * Build → Sign (Freighter) → Submit a real XLM payment on Stellar Testnet.
+ * Throws typed WalletError(insufficient_balance) when balance check fails.
+ * Falls back to demo simulation if Freighter is not installed.
  */
 export async function sendXlmPayment(
   senderPublicKey: string,
@@ -190,11 +357,21 @@ export async function sendXlmPayment(
   const isDemoMode = senderPublicKey === 'GDEMO5UX2XQPBQ43XSSCFHQB12KPQUEZJCBAMWKFXBA6XNECMKJNMZA'
     || !senderPublicKey.startsWith('G');
 
-  // ── STEP 1: Preparing ──────────────────────
   onStep('preparing');
 
+  // Balance guard — throw typed error before hitting the network
+  if (!isDemoMode) {
+    const currentBal = await fetchTestnetXlmBalance(senderPublicKey);
+    const required = amountXlm + 0.5; // include minimum reserve
+    if (currentBal < required) {
+      throw new WalletError(
+        'insufficient_balance',
+        `Your balance of ${currentBal.toFixed(4)} XLM is insufficient. This transaction requires ${required.toFixed(4)} XLM (${amountXlm} XLM + 0.5 XLM minimum reserve). Use the Friendbot faucet to get free Testnet XLM.`
+      );
+    }
+  }
+
   if (isDemoMode) {
-    // Demo simulation with realistic delays
     await new Promise(r => setTimeout(r, 800));
     onStep('signing');
     await new Promise(r => setTimeout(r, 1000));
@@ -202,114 +379,73 @@ export async function sendXlmPayment(
     await new Promise(r => setTimeout(r, 1200));
     onStep('confirming');
     await new Promise(r => setTimeout(r, 900));
-
     const hash = generateTxHash();
-    const ledgerBlock = Math.floor(48500000 + Math.random() * 100000);
-    return {
-      hash,
-      ledgerBlock,
-      explorerUrl: `https://stellar.expert/explorer/testnet/tx/${hash}`,
-      feePaidXlm: '0.00001 XLM',
-      success: true,
-    };
+    return { hash, ledgerBlock: Math.floor(48500000 + Math.random() * 100000), explorerUrl: `https://stellar.expert/explorer/testnet/tx/${hash}`, feePaidXlm: '0.00001 XLM', success: true };
   }
 
-  // ── REAL TRANSACTION ──────────────────────
   try {
     const server = new StellarSdk.Horizon.Server(HORIZON_TESTNET_URL);
-
-    // Load sender's account sequence number from Horizon
     const sourceAccount = await server.loadAccount(senderPublicKey);
 
-    // Build the Payment operation
     const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
       fee: StellarSdk.BASE_FEE,
       networkPassphrase: StellarSdk.Networks.TESTNET,
     })
-      .addOperation(
-        StellarSdk.Operation.payment({
-          destination: destinationPublicKey,
-          asset: StellarSdk.Asset.native(),
-          amount: amountXlm.toFixed(7),
-        })
-      )
+      .addOperation(StellarSdk.Operation.payment({
+        destination: destinationPublicKey,
+        asset: StellarSdk.Asset.native(),
+        amount: amountXlm.toFixed(7),
+      }))
       .addMemo(memo ? StellarSdk.Memo.text(memo.slice(0, 28)) : StellarSdk.Memo.none())
       .setTimeout(180)
       .build();
 
-    const transactionXDR = transaction.toXDR();
-
-    // ── STEP 2: Signing via Freighter ─────────
     onStep('signing');
 
     const f = freighter as any;
-    let signedXDR = transactionXDR;
-
+    let signedXDR = transaction.toXDR();
     if (typeof f.signTransaction === 'function') {
-      const signResult = await f.signTransaction(transactionXDR, {
+      const signResult = await f.signTransaction(signedXDR, {
         network: 'TESTNET',
         networkPassphrase: StellarSdk.Networks.TESTNET,
         accountToSign: senderPublicKey,
       });
-      // Freighter v6 returns { signedTxXdr } or the XDR string directly
-      signedXDR = typeof signResult === 'object' && signResult.signedTxXdr
-        ? signResult.signedTxXdr
-        : signResult;
-    } else {
-      throw new Error('Freighter signTransaction API not available. Please update Freighter.');
+      if (signResult?.error) {
+        throw new WalletError('user_rejected', 'You rejected the transaction signing in Freighter. The payment was not submitted.');
+      }
+      signedXDR = typeof signResult === 'object' && signResult.signedTxXdr ? signResult.signedTxXdr : signResult;
     }
 
-    // ── STEP 3: Submit to Horizon ─────────────
     onStep('submitting');
 
-    const signedTx = StellarSdk.TransactionBuilder.fromXDR(
-      signedXDR,
-      StellarSdk.Networks.TESTNET
-    );
+    const signedTx = StellarSdk.TransactionBuilder.fromXDR(signedXDR, StellarSdk.Networks.TESTNET);
 
-    // ── STEP 4: Confirm ledger inclusion ──────
     onStep('confirming');
 
-    const horizonResult = await server.submitTransaction(signedTx);
-
-    const hash = horizonResult.hash;
-    // horizonResult.ledger may be undefined for async submissions; use a safe fallback
-    const ledgerBlock = (horizonResult as any).ledger ?? Math.floor(48500000 + Math.random() * 100000);
+    const result = await server.submitTransaction(signedTx);
+    const hash = result.hash;
+    const ledgerBlock = (result as any).ledger ?? Math.floor(48500000 + Math.random() * 100000);
 
     return {
-      hash,
-      ledgerBlock,
+      hash, ledgerBlock,
       explorerUrl: `https://stellar.expert/explorer/testnet/tx/${hash}`,
       feePaidXlm: `${(parseInt(StellarSdk.BASE_FEE) / 1e7).toFixed(5)} XLM`,
       success: true,
     };
   } catch (err: any) {
-    // Horizon returns extra_info on tx failure
+    if (err instanceof WalletError) throw err;
     const horizonError =
       err?.response?.data?.extras?.result_codes?.transaction ||
       err?.response?.data?.extras?.result_codes?.operations?.[0] ||
-      err?.message ||
-      'Transaction failed on Stellar Testnet.';
-
-    return {
-      hash: '',
-      ledgerBlock: 0,
-      explorerUrl: '',
-      feePaidXlm: '0 XLM',
-      success: false,
-      errorMessage: horizonError,
-    };
+      err?.message || 'Transaction failed on Stellar Testnet.';
+    return { hash: '', ledgerBlock: 0, explorerUrl: '', feePaidXlm: '0 XLM', success: false, errorMessage: horizonError };
   }
 }
 
-// ─────────────────────────────────────────────
-// SIMULATED SWAP TRANSACTION (DEX Flow)
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SIMULATED SWAP — DEX Flow
+// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Simulated multi-step swap flow for the SwapCard UI.
- * Uses realistic Freighter signing simulation.
- */
 export async function executeSorobanSwapTransaction(
   fromTokenSymbol: string,
   toTokenSymbol: string,
@@ -320,13 +456,10 @@ export async function executeSorobanSwapTransaction(
 ): Promise<TransactionRecord> {
   onStepChange('preparing');
   await new Promise(r => setTimeout(r, 800));
-
   onStepChange('signing');
   await new Promise(r => setTimeout(r, 1000));
-
   onStepChange('submitting');
   await new Promise(r => setTimeout(r, 1200));
-
   onStepChange('confirming');
   await new Promise(r => setTimeout(r, 900));
 
@@ -350,21 +483,17 @@ export async function executeSorobanSwapTransaction(
   };
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // UTILITIES
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
-/** Generate a realistic 64-char hex transaction hash for demo mode */
 export function generateTxHash(): string {
   const chars = '0123456789abcdef';
   let hash = '';
-  for (let i = 0; i < 64; i++) {
-    hash += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
+  for (let i = 0; i < 64; i++) hash += chars.charAt(Math.floor(Math.random() * chars.length));
   return hash;
 }
 
-/** Truncate a Stellar public key for display */
 export function truncateAddress(address: string | null, startLen = 6, endLen = 4): string {
   if (!address) return '';
   if (address.length <= startLen + endLen) return address;
