@@ -16,6 +16,7 @@ import { DocsModal } from './components/DocsModal';
 import { ErrorAlertModal } from './components/ErrorAlertModal';
 import { Footer } from './components/Footer';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { SendXlmPanel } from './components/SendXlmPanel';
 
 import { 
   Token, 
@@ -62,6 +63,7 @@ export default function App() {
     {
       id: 'tx-init-1',
       hash: 'a1b2c3d4e5f678901234567890abcdef1234567890abcdef1234567890abcdef',
+      type: 'SWAP',
       fromToken: 'XLM',
       toToken: 'USDC',
       fromAmount: 500,
@@ -69,7 +71,7 @@ export default function App() {
       timestamp: '10:14:22 AM',
       status: 'SUCCESS',
       ledgerBlock: 48519283,
-      feePaidXlm: '0.0000100 XLM',
+      feePaidXlm: '0.00001 XLM',
       sorobanContractId: SOROBAN_CONTRACT_ADDRESS,
       explorerUrl: 'https://stellar.expert/explorer/testnet/tx/a1b2c3d4e5f678901234567890abcdef1234567890abcdef1234567890abcdef',
     },
@@ -171,6 +173,17 @@ export default function App() {
       contractId: SOROBAN_CONTRACT_ADDRESS,
     };
     setEvents((prev) => [newEvt, ...prev]);
+  };
+
+  // Handle SendXlmPanel completed payment
+  const handlePaymentComplete = (record: TransactionRecord) => {
+    setTransactions((prev) => [record, ...prev]);
+    if (record.status === 'SUCCESS') {
+      setWallet((prev) => ({
+        ...prev,
+        balanceXlm: Math.max(0, prev.balanceXlm - record.fromAmount),
+      }));
+    }
   };
 
   // Execute Swap Transaction
@@ -319,6 +332,17 @@ export default function App() {
 
                 <FeaturesGrid />
               </div>
+            )}
+
+            {activeTab === 'send' && (
+              <SendXlmPanel
+                wallet={wallet}
+                onOpenWalletModal={() => setWalletModalOpen(true)}
+                onTransactionComplete={handlePaymentComplete}
+                onAddEvent={(type, title, details, hash) =>
+                  addContractEvent(type, title, details, hash)
+                }
+              />
             )}
 
             {activeTab === 'balance' && (
