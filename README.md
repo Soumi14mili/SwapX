@@ -16,6 +16,17 @@
 
 ---
 
+## 📌 Submission Overview
+
+| Requirement | Value / Location |
+|---|---|
+| **Live Demo Link** | **[https://swap-x-4qde.vercel.app/](https://swap-x-4qde.vercel.app/)** (Deployed on Vercel) |
+| **Deployed Contract Address** | `CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA` ([View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA)) |
+| **Verifiable Transaction Hash** | `5c291750b0ad56d3b67347f5a8be2ca55c8e6bebbf433a9b7ac570a0f3d4b2aa` ([View on Stellar Expert](https://stellar.expert/explorer/testnet/tx/5c291750b0ad56d3b67347f5a8be2ca55c8e6bebbf433a9b7ac570a0f3d4b2aa)) |
+| **Wallet Options Screenshot** | Included below ([View Wallet Options Screenshot](#1-wallet-options-available)) |
+
+---
+
 ## 📋 Project Description
 
 **SwapX** is a full-featured Stellar Testnet DeFi interface that combines a **Soroban DEX token swap** with a **real XLM payment panel** and a **live Soroban Smart Contract Explorer** — all connected to a live Freighter browser wallet. Built with React 19, TypeScript, and `@stellar/stellar-sdk` v16, it demonstrates end-to-end blockchain interaction from wallet authentication to on-chain transaction submission, real Soroban RPC simulation calls, and structured error handling.
@@ -27,7 +38,7 @@
 ### 1. Contract Deployed on Testnet
 SwapX calls the **XLM Native Stellar Asset Contract (SAC)** — a real Soroban smart contract permanently deployed on Stellar Testnet by the Stellar protocol.
 - **Contract Address:** `CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA`
-- **Explorer Link:** [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA)
+- **Explorer Link:** [View on Stellar Expert Explorer](https://stellar.expert/explorer/testnet/contract/CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA)
 - **Deterministic derivation:** Computed via `StellarSdk.Asset.native().contractId(Networks.TESTNET)`
 
 ### 2. Contract Called from Frontend
@@ -122,22 +133,27 @@ npm run build    # Production build
 
 ## 📸 Screenshots
 
-### 1 · Wallet Connected State
+### 1 · Wallet Options Available
+![Wallet Options Available](assets/screenshot_wallet_options.png)
+
+---
+
+### 2 · Wallet Connected State
 ![Wallet Connected State](assets/screenshot_wallet_connected.png)
 
 ---
 
-### 2 · XLM Balance Displayed
+### 3 · XLM Balance Displayed
 ![Balance Panel](assets/screenshot_balance_panel.png)
 
 ---
 
-### 3 · Transaction Status Visible (in Progress)
+### 4 · Transaction Status Visible (in Progress)
 ![Transaction In Progress](assets/screenshot_transaction_sending.png)
 
 ---
 
-### 4 · Transaction Result Shown to User
+### 5 · Transaction Result Shown to User
 ![Transaction Success](assets/screenshot_transaction_success.png)
 
 ---
@@ -165,15 +181,17 @@ src/
 
 ---
 
-## 📋 Level 2 Requirement Checklist
+## 📋 Requirement Checklist
 
 | Requirement | Implementation Details | Status |
 |---|---|---|
-| **Contract deployed on testnet** | XLM Native SAC (`CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA`) | ✅ |
-| **Contract called from frontend** | `callSorobanSacBalance()` & `callSorobanSacMeta()` via `StellarSdk.rpc.Server` | ✅ |
-| **3+ error types handled** | 5 typed errors (`wallet_not_installed`, `user_rejected`, `insufficient_balance`, `network_mismatch`, `contract_error`) | ✅ |
-| **Transaction status visible** | 4-step animated pipeline + hash, block #, explorer link & fail banners | ✅ |
-| **10+ meaningful commits** | 20+ commits on main branch | ✅ |
+| **Live demo link** | **[https://swap-x-4qde.vercel.app/](https://swap-x-4qde.vercel.app/)** | ✅ |
+| **Screenshot: wallet options available** | Included in `assets/screenshot_wallet_options.png` | ✅ |
+| **Deployed contract address** | `CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA` (XLM Native SAC) | ✅ |
+| **Transaction hash of a contract call** | `5c291750b0ad56d3b67347f5a8be2ca55c8e6bebbf433a9b7ac570a0f3d4b2aa` | ✅ |
+| **3 error types handled** | 5 typed errors with custom UI & CTAs | ✅ |
+| **Transaction status visible** | 4-step animated pipeline + result banners | ✅ |
+| **10+ commits** | 20+ commits on `main` branch | ✅ |
 
 ---
 
