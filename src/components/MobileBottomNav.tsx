@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Zap, Layers, Code2, Activity, BarChart3 } from 'lucide-react';
+import { Home, Zap, Layers, Code2, Activity, BarChart3, SendHorizonal } from 'lucide-react';
 
 interface MobileBottomNavProps {
   activeTab: string;
@@ -13,8 +13,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const tabs = [
     { id: 'landing', label: 'Home', icon: Home },
     { id: 'swap', label: 'Swap', icon: Zap },
+    { id: 'send', label: 'Send', icon: SendHorizonal },
     { id: 'balance', label: 'Assets', icon: Layers },
-    { id: 'contract', label: 'Soroban', icon: Code2 },
     { id: 'events', label: 'Stream', icon: Activity },
     { id: 'dashboard', label: 'Dev', icon: BarChart3 },
   ];

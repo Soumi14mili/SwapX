@@ -18,7 +18,8 @@ import {
   Wifi,
   BatteryCharging,
   Signal,
-  Sparkles
+  Sparkles,
+  SendHorizonal
 } from 'lucide-react';
 import { WalletState } from '../types';
 import { truncateAddress } from '../services/stellarService';
@@ -62,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navItems = [
     { id: 'landing', label: 'Home', icon: Globe2 },
     { id: 'swap', label: 'Swap', icon: Zap },
+    { id: 'send', label: 'Send XLM', icon: SendHorizonal },
     { id: 'balance', label: 'Assets', icon: Layers },
     { id: 'contract', label: 'Soroban', icon: Code2 },
     { id: 'events', label: 'Events', icon: Activity },
