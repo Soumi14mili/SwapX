@@ -31,7 +31,8 @@ import {
   checkFreighterInstalled, 
   fetchTestnetXlmBalance, 
   executeSorobanSwapTransaction,
-  truncateAddress 
+  truncateAddress,
+  WalletError
 } from './services/stellarService';
 import { SOROBAN_CONTRACT_ADDRESS } from './data/sorobanCode';
 
@@ -129,13 +130,21 @@ export default function App() {
       );
     } catch (err: any) {
       setWallet((prev) => ({ ...prev, isConnecting: false, error: err.message }));
-      
-      // Trigger error alert
+
+      // Use typed error category from WalletError for precise UI differentiation
+      const errorType = err instanceof WalletError
+        ? err.errorType
+        : (wallet.isFreighterAvailable ? 'user_rejected' : 'wallet_not_installed');
+
       setActiveAlert({
         id: `err-${Date.now()}`,
-        title: 'Wallet Connection Error',
+        title: errorType === 'network_mismatch'
+          ? 'Wrong Network — Switch to Testnet'
+          : errorType === 'user_rejected'
+          ? 'Connection Rejected'
+          : 'Wallet Connection Error',
         message: err.message || 'User rejected Freighter signature or extension not active.',
-        type: wallet.isFreighterAvailable ? 'user_rejected' : 'wallet_not_installed',
+        type: errorType,
         timestamp: new Date().toLocaleTimeString(),
       });
     }
@@ -367,6 +376,7 @@ export default function App() {
 
             {activeTab === 'contract' && (
               <SmartContractPanel
+                wallet={wallet}
                 onTriggerContractCall={handleTriggerContractCall}
               />
             )}
