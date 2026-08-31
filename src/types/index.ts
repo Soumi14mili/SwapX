@@ -34,6 +34,8 @@ export type TransactionStatus =
 export interface TransactionRecord {
   id: string;
   hash: string;
+  /** Transaction type — SWAP for DEX swaps, PAYMENT for direct XLM sends */
+  type?: 'SWAP' | 'PAYMENT';
   fromToken: string;
   toToken: string;
   fromAmount: number;
@@ -44,11 +46,15 @@ export interface TransactionRecord {
   feePaidXlm: string;
   sorobanContractId: string;
   explorerUrl: string;
+  /** Human-readable error detail when status is FAILED */
+  errorMessage?: string;
+  /** Optional recipient address for PAYMENT transactions */
+  recipientAddress?: string;
 }
 
 export interface ContractEvent {
   id: string;
-  type: 'SWAP' | 'WALLET' | 'CONTRACT' | 'FAUCET' | 'SYSTEM';
+  type: 'SWAP' | 'WALLET' | 'CONTRACT' | 'FAUCET' | 'SYSTEM' | 'PAYMENT';
   title: string;
   details: string;
   timestamp: string;
