@@ -10,7 +10,7 @@
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript)](https://typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Build-Vite_6-646CFF?style=for-the-badge&logo=vite)](https://vitejs.dev)
 
-**[🚀 Live Demo](https://swap-x-pink.vercel.app)** · **[📁 Repository](https://github.com/Soumi14mili/SwapX)**
+**[🚀 Live Demo](https://swap-x-4qde.vercel.app/)** · **[📁 Repository](https://github.com/Soumi14mili/SwapX)**
 
 </div>
 
@@ -232,7 +232,7 @@ src/
 
 ## 🔗 Links
 
-- **Live App:** [https://swap-x-pink.vercel.app](https://swap-x-pink.vercel.app)
+- **Live App:** [https://swap-x-4qde.vercel.app](https://swap-x-4qde.vercel.app/)
 - **GitHub:** [https://github.com/Soumi14mili/SwapX](https://github.com/Soumi14mili/SwapX)
 - **Freighter Wallet:** [https://www.freighter.app](https://www.freighter.app)
 - **Stellar Testnet Explorer:** [https://stellar.expert/explorer/testnet](https://stellar.expert/explorer/testnet)
