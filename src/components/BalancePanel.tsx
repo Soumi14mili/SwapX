@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   Layers, 
@@ -30,6 +30,14 @@ export const BalancePanel: React.FC<BalancePanelProps> = ({
   const [refreshing, setRefreshing] = useState(false);
   const [faucetLoading, setFaucetLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Auto-refresh XLM balance from Horizon when panel mounts and wallet is connected
+  useEffect(() => {
+    if (wallet.isConnected && wallet.publicKey) {
+      setRefreshing(true);
+      onRefreshBalance().finally(() => setRefreshing(false));
+    }
+  }, [wallet.isConnected, wallet.publicKey]);
 
   // Update XLM balance in list
   const currentTokens = tokens.map((t) =>
