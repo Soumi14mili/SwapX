@@ -189,7 +189,7 @@ export async function callSorobanSacBalance(
 ): Promise<SorobanCallResult> {
   const fnName = 'balance';
   try {
-    const server = new StellarSdk.SorobanRpc.Server(SOROBAN_RPC_URL, { allowHttp: false });
+    const server = new StellarSdk.rpc.Server(SOROBAN_RPC_URL, { allowHttp: false });
     const contract = new StellarSdk.Contract(XLM_SAC_CONTRACT_ID);
 
     // We need any funded account to build the simulation transaction
@@ -224,7 +224,7 @@ export async function callSorobanSacBalance(
     // Simulate — no signing needed for read-only calls
     const simulation = await server.simulateTransaction(tx);
 
-    if (StellarSdk.SorobanRpc.Api.isSimulationError(simulation)) {
+    if (StellarSdk.rpc.Api.isSimulationError(simulation)) {
       throw new WalletError('contract_error', `Soroban simulation error: ${simulation.error}`);
     }
 
@@ -264,7 +264,7 @@ export async function callSorobanSacMeta(
   callerAddress: string
 ): Promise<SorobanCallResult> {
   try {
-    const server = new StellarSdk.SorobanRpc.Server(SOROBAN_RPC_URL, { allowHttp: false });
+    const server = new StellarSdk.rpc.Server(SOROBAN_RPC_URL, { allowHttp: false });
     const contract = new StellarSdk.Contract(XLM_SAC_CONTRACT_ID);
 
     const sourceKey = callerAddress.startsWith('G') ? callerAddress : 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
@@ -287,7 +287,7 @@ export async function callSorobanSacMeta(
 
     const simulation = await server.simulateTransaction(tx);
 
-    if (StellarSdk.SorobanRpc.Api.isSimulationError(simulation)) {
+    if (StellarSdk.rpc.Api.isSimulationError(simulation)) {
       throw new Error(`Simulation failed: ${simulation.error}`);
     }
 
