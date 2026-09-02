@@ -10,7 +10,7 @@
 [![React](https://img.shields.io/badge/Frontend-React_19-61DAFB?style=for-the-badge&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript)](https://typescriptlang.org)
 
-**[🚀 Live Demo](https://swap-x-4qde.vercel.app/)** · **[📁 Repository](https://github.com/Soumi14mili/SwapX)**
+**[🚀 Live Demo](https://swapx-one.vercel.app/)** · **[📁 Repository](https://github.com/Soumi14mili/SwapX)**
 
 </div>
 
@@ -20,7 +20,7 @@
 
 | Requirement | Value / Location |
 |---|---|
-| **Live Demo Link** | **[https://swap-x-4qde.vercel.app/](https://swap-x-4qde.vercel.app/)** (Deployed on Vercel) |
+| **Live Demo Link** | **[https://swapx-one.vercel.app/](https://swapx-one.vercel.app/)** (Deployed on Vercel) |
 | **Deployed Contract Address** | `CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA` ([View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA)) |
 | **Verifiable Transaction Hash** | `5c291750b0ad56d3b67347f5a8be2ca55c8e6bebbf433a9b7ac570a0f3d4b2aa` ([View on Stellar Expert](https://stellar.expert/explorer/testnet/tx/5c291750b0ad56d3b67347f5a8be2ca55c8e6bebbf433a9b7ac570a0f3d4b2aa)) |
 | **Wallet Options Screenshot** | Included below ([View Wallet Options Screenshot](#1-wallet-options-available)) |
@@ -161,22 +161,65 @@ npm run build    # Production build
 ## 📁 Project Structure
 
 ```
-src/
-├── components/
-│   ├── SmartContractPanel.tsx # Live Soroban RPC query tab (balance, name, symbol)
-│   ├── ErrorAlertModal.tsx    # 5 distinct error types with custom icons, colors & CTAs
-│   ├── SendXlmPanel.tsx       # Real XLM payment — 4-step pipeline + result banners
-│   ├── WalletModal.tsx        # Freighter connect/disconnect + 4-step setup guide
-│   ├── BalancePanel.tsx       # Live Horizon balance + portfolio table
-│   ├── TransactionPanel.tsx   # History with SWAP/PAYMENT badges & FAILED state
-│   ├── SwapCard.tsx           # Token swap interface (Soroban DEX)
-│   └── Navbar.tsx             # Navigation with Send XLM & Soroban tabs
-├── services/
-│   └── stellarService.ts      # Freighter v6 API + Soroban RPC simulation + payment
-├── types/
-│   └── index.ts               # WalletState, TransactionRecord, ContractEvent, ErrorAlert
-└── data/
-    └── sorobanCode.ts         # Real XLM SAC contract ID & Soroban Rust contract code
+SwapX/
+├── contracts/                         # ← Soroban smart contract source
+│   ├── hello_world/
+│   │   ├── src/
+│   │   │   └── lib.rs                 # SwapX AMM contract (hello, swap, pool, liquidity)
+│   │   └── Cargo.toml                 # soroban-sdk 21.7.6 crate manifest
+│   ├── scripts/
+│   │   └── build_and_deploy.sh        # One-shot build → test → deploy → invoke
+│   └── README.md                      # Contract developer docs & quick-start
+├── Cargo.toml                         # Rust workspace root
+├── rust-toolchain.toml                # Pins stable + wasm32-unknown-unknown
+├── .soroban/
+│   └── network.toml                   # Stellar CLI testnet RPC config
+└── src/
+    ├── components/
+    │   ├── SmartContractPanel.tsx     # Live Soroban RPC query tab (balance, name, symbol)
+    │   ├── ErrorAlertModal.tsx        # 5 distinct error types with custom icons, colors & CTAs
+    │   ├── SendXlmPanel.tsx           # Real XLM payment — 4-step pipeline + result banners
+    │   ├── WalletModal.tsx            # Freighter connect/disconnect + 4-step setup guide
+    │   ├── BalancePanel.tsx           # Live Horizon balance + portfolio table
+    │   ├── TransactionPanel.tsx       # History with SWAP/PAYMENT badges & FAILED state
+    │   ├── SwapCard.tsx               # Token swap interface (Soroban DEX)
+    │   └── Navbar.tsx                 # Navigation with Send XLM & Soroban tabs
+    ├── services/
+    │   └── stellarService.ts          # Freighter v6 API + Soroban RPC simulation + payment
+    ├── types/
+    │   └── index.ts                   # WalletState, TransactionRecord, ContractEvent, ErrorAlert
+    └── data/
+        └── sorobanCode.ts             # Real XLM SAC contract ID & Soroban Rust contract code
+```
+
+---
+
+## 🦀 Soroban Contract Source
+
+The full AMM contract lives in [`contracts/hello_world/src/lib.rs`](contracts/hello_world/src/lib.rs) and implements:
+
+| Function | Description |
+|---|---|
+| `hello(to)` | Classic greeting — returns `["Hello", ...]` |
+| `initialize(admin)` | Bootstrap admin + swap counter (one-time) |
+| `create_pool(...)` | Register an XY=K AMM pool for any token pair |
+| `add_liquidity(...)` | Deposit tokens → receive LP shares |
+| `remove_liquidity(...)` | Burn LP shares → withdraw underlying tokens |
+| `swap_tokens(...)` | Constant-product swap + slippage guard |
+| `get_pool_info(...)` | Read reserves, fee & LP shares |
+| `get_total_swaps()` | Lifetime swap counter |
+
+```bash
+# Build WASM binary
+cargo build --release --target wasm32-unknown-unknown \
+  --manifest-path contracts/hello_world/Cargo.toml
+
+# Run unit tests
+cargo test --manifest-path contracts/hello_world/Cargo.toml --features testutils
+
+# Deploy to Testnet
+export DEPLOYER_SECRET="S..."
+bash contracts/scripts/build_and_deploy.sh deploy
 ```
 
 ---
@@ -185,7 +228,7 @@ src/
 
 | Requirement | Implementation Details | Status |
 |---|---|---|
-| **Live demo link** | **[https://swap-x-4qde.vercel.app/](https://swap-x-4qde.vercel.app/)** | ✅ |
+| **Live demo link** | **[https://swapx-one.vercel.app/](https://swapx-one.vercel.app/)** | ✅ |
 | **Screenshot: wallet options available** | Included in `assets/screenshot_wallet_options.png` | ✅ |
 | **Deployed contract address** | `CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA` (XLM Native SAC) | ✅ |
 | **Transaction hash of a contract call** | `5c291750b0ad56d3b67347f5a8be2ca55c8e6bebbf433a9b7ac570a0f3d4b2aa` | ✅ |
@@ -197,7 +240,9 @@ src/
 
 ## 🔗 Links
 
-- **Live App:** [https://swap-x-4qde.vercel.app](https://swap-x-4qde.vercel.app/)
+- **Live App:** [https://swapx-one.vercel.app](https://swapx-one.vercel.app/)
+- **Vercel Dashboard:** [soumi14milis-projects/swapx](https://vercel.com/soumi14milis-projects/swapx)
 - **GitHub Repository:** [https://github.com/Soumi14mili/SwapX](https://github.com/Soumi14mili/SwapX)
+- **Soroban Contract Source:** [`contracts/hello_world/src/lib.rs`](contracts/hello_world/src/lib.rs)
 - **Stellar Testnet Explorer:** [https://stellar.expert/explorer/testnet](https://stellar.expert/explorer/testnet)
 - **Freighter Wallet:** [https://www.freighter.app](https://www.freighter.app)
