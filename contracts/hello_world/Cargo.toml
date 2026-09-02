@@ -1,0 +1,29 @@
+[package]
+name    = "hello-world"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Soroban / Stellar SDK version pinned to Protocol-21 compatible release.
+# Update to the latest stable when Stellar publishes a new SDK release.
+# ──────────────────────────────────────────────────────────────────────────────
+
+[lib]
+crate-type = ["cdylib"]      # Required: Soroban WASM target needs a C-compatible dynamic lib
+
+[profile.release]
+# Optimise aggressively for WASM output size (critical for on-chain storage costs)
+opt-level     = "z"          # Optimise for binary size
+overflow-checks = true       # Keep overflow panics in release — contracts must be correct
+debug         = false
+strip         = true
+
+[features]
+testutils = ["soroban-sdk/testutils"]  # Enables Address::generate(), mock_all_auths(), etc.
+
+[dependencies]
+soroban-sdk = { version = "21.7.6", features = [] }
+
+[dev-dependencies]
+soroban-sdk = { version = "21.7.6", features = ["testutils"] }

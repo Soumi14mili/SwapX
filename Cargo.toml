@@ -1,0 +1,25 @@
+[workspace]
+# ─────────────────────────────────────────────────────────────────────────────
+# SwapX — Soroban Smart Contracts Workspace
+#
+# Add new contract crates to the `members` array as the project grows.
+# Each member should live under contracts/<name>/ and have its own Cargo.toml.
+# ─────────────────────────────────────────────────────────────────────────────
+members  = ["contracts/hello_world"]
+resolver = "2"
+
+[workspace.dependencies]
+# Pin the SDK version workspace-wide so all contracts stay in sync.
+soroban-sdk = { version = "21.7.6" }
+
+[profile.release]
+# Shared WASM optimisation settings inherited by all workspace members.
+opt-level       = "z"
+overflow-checks = true
+debug           = false
+strip           = true
+
+[profile.release-with-logs]
+# Use this profile locally when you need env.log!() output for debugging.
+inherits        = "release"
+debug-assertions = true

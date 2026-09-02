@@ -1,0 +1,10 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .soroban/network.toml — Stellar CLI network configuration
+#
+# The Stellar CLI reads this file automatically when run from the project root.
+# Keeps testnet connection settings version-controlled with the project.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[networks.testnet]
+rpc-url            = "https://soroban-testnet.stellar.org"
+network-passphrase = "Test SDF Network ; September 2015"

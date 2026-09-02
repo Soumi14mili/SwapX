@@ -1,0 +1,7 @@
+[toolchain]
+# Pin to the nightly toolchain that Soroban WASM compilation requires.
+# Stellar Dev Tools recommends the nightly channel with the wasm32 target.
+# Run once after cloning:
+#   rustup target add wasm32-unknown-unknown
+channel = "stable"
+targets = ["wasm32-unknown-unknown"]
